@@ -150,6 +150,11 @@ jobs:
           
           git config --global user.name hihi213
           git config --global user.email 07_caulker_purges@icloud.com
+          
           git add .
           git commit -m "$COMMIT_MSG" || echo "No changes to commit"
+          
+          # 핵심: 원격 저장소의 최신 내용을 먼저 가져와서 합칩니다 (rebase 사용 추천)
+          git pull origin main --rebase
+          
           git push
