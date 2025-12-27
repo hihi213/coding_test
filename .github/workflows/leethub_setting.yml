@@ -1,0 +1,195 @@
+name: LeetHub Setting
+on:
+  push:
+    branches: [ "main" ]
+permissions:
+  contents: write
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check_leethub.outputs.should_run }}
+      package_name: ${{ steps.detect_package.outputs.PACKAGE_NAME }}
+      commit_msg: ${{ steps.check_leethub.outputs.commit_msg }}
+      level: ${{ steps.extract_level.outputs.leetcode_level }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: Check if LeetHub Commit
+        id: check_leethub
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B | tail -n 1)
+          echo "Latest commit message: $COMMIT_MSG"
+          if [[ "$COMMIT_MSG" == Time:* && "$COMMIT_MSG" == *"- LeetHub" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "commit_msg=${COMMIT_MSG}" >> $GITHUB_OUTPUT
+            echo "LeetHub 커밋 확인, 패키지 이사 작업 준비 ✅"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "commit_msg=" >> $GITHUB_OUTPUT
+            echo "작업 없이 패스하면 됩니다 ❌"
+          fi
+
+      - name: Detect New Solve Package
+        id: detect_package
+        if: steps.check_leethub.outputs.should_run == 'true'
+        run: |
+          git config --global core.quotepath false
+          EXCLUDE_DIRS=("LeetCode" "백준" "프로그래머스" ".github")
+          NEW_DIRS=$(git diff --name-only HEAD~1 HEAD | awk -F/ 'NF>=2 {print $1}' | sort -u)
+          
+          SAVEIFS=$IFS
+          IFS=$'\n'
+          FOUND=false
+          for DIR in $NEW_DIRS; do
+            SKIP=false
+            for EX in "${EXCLUDE_DIRS[@]}"; do
+              if [[ "$DIR" == "$EX" ]]; then
+                SKIP=true
+                break
+              fi
+            done
+            if [[ "$SKIP" == false ]]; then
+              echo "새로 추가된 문제풀이 패키지명: $DIR"
+              echo "PACKAGE_NAME=$DIR" >> $GITHUB_OUTPUT
+              FOUND=true
+              break
+            fi
+          done
+          IFS=$SAVEIFS
+          
+          if [[ "$FOUND" == false ]]; then
+             echo "새로운 문제 패키지를 찾을 수 없습니다."
+          fi
+
+      - name: Extract Level from README
+        id: extract_level
+        if: steps.check_leethub.outputs.should_run == 'true' && steps.detect_package.outputs.PACKAGE_NAME != ''
+        run: |
+          PACKAGE_NAME="${{ steps.detect_package.outputs.PACKAGE_NAME }}"
+          README_PATH="$PACKAGE_NAME/README.md"
+          if [ ! -f "$README_PATH" ]; then
+            echo "README.md 파일 없음 ❌"
+            echo "leetcode_level=Unknown" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          LEVEL=$(grep -oP '(?<=<h3>).*?(?=</h3>)' "$README_PATH" | head -n 1)
+          if [ -z "$LEVEL" ]; then
+            LEVEL="Unknown"
+          fi
+          echo "LeetCode 문제 난이도: $LEVEL"
+          echo "leetcode_level=$LEVEL" >> $GITHUB_OUTPUT
+
+  move:
+    needs: detect
+    if: ${{ needs.detect.outputs.should_run == 'true' && needs.detect.outputs.package_name != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+        
+      - name: Convert Code to MD and Move
+        run: |
+          PACKAGE_NAME="${{ needs.detect.outputs.package_name }}"
+          LEVEL_DIRECTORY="${{ needs.detect.outputs.level }}"
+          ROOT_DIR="LeetCode"
+          
+          echo "--------------------------------------------------"
+          echo "🛠️ 소스 코드 마크다운 변환 작업 시작"
+          
+          # 패키지 내부로 이동해서 파일 순회
+          cd "$PACKAGE_NAME"
+          
+          for file in *; do
+            # 디렉토리거나 이미 md 파일이면 건너뜀
+            if [ -d "$file" ] || [[ "$file" == *.md ]]; then
+              continue
+            fi
+
+            # 확장자 추출 및 언어 매핑
+            EXT="${file##*.}"
+            LANG=""
+            
+            case "$EXT" in
+              py) LANG="python" ;;
+              java) LANG="java" ;;
+              cpp|cc|cxx) LANG="cpp" ;;
+              js|ts) LANG="javascript" ;;
+              go) LANG="go" ;;
+              c) LANG="c" ;;
+              kt|kotlin) LANG="kotlin" ;;
+              swift) LANG="swift" ;;
+              rb) LANG="ruby" ;;
+              rs) LANG="rust" ;;
+              sql) LANG="sql" ;;
+            esac
+
+            # 지원하는 언어라면 변환 실행
+            if [ -n "$LANG" ]; then
+              NEW_FILE="${file%.*}.md"
+              echo "📄 변환 중: $file -> $NEW_FILE ($LANG)"
+              
+              # 마크다운 파일 생성 (헤더 + 코드블럭)
+              echo "### 소스 코드 ($file)" > "$NEW_FILE"
+              echo "" >> "$NEW_FILE"
+              echo "\`\`\`$LANG" >> "$NEW_FILE"
+              cat "$file" >> "$NEW_FILE"
+              echo "" >> "$NEW_FILE" # 파일 끝에 줄바꿈 확보
+              echo "\`\`\`" >> "$NEW_FILE"
+              
+              # 원본 소스 코드 파일 삭제
+              rm "$file"
+            fi
+          done
+          
+          # 다시 상위 폴더로 복귀
+          cd ..
+          echo "✅ 변환 완료"
+          echo "--------------------------------------------------"
+
+          # ---------------- 이사 로직 시작 ----------------
+          echo "옮겨야 할 패키지 확인: $PACKAGE_NAME"
+          echo "감지된 레벨: $LEVEL_DIRECTORY"
+          
+          FOUND_EXISTING_PATH=""
+          for dir in "$ROOT_DIR"/*; do
+            if [ -d "$dir/$PACKAGE_NAME" ]; then
+              FOUND_EXISTING_PATH="$dir"
+              break
+            fi
+          done
+          
+          if [ -n "$FOUND_EXISTING_PATH" ]; then
+            DEST="$FOUND_EXISTING_PATH/$PACKAGE_NAME"
+            echo "→ 기존 디렉토리로 병합 이동: $DEST"
+            cp -r "$PACKAGE_NAME"/* "$DEST"/
+            rm -rf "$PACKAGE_NAME"
+          else 
+            DEST="$ROOT_DIR/$LEVEL_DIRECTORY/$PACKAGE_NAME"
+            echo "→ 새 디렉토리로 이동: $DEST"
+            mkdir -p "$ROOT_DIR/$LEVEL_DIRECTORY"
+            mv "$PACKAGE_NAME" "$ROOT_DIR/$LEVEL_DIRECTORY/"
+          fi
+
+      - name: Commit and Push
+        run: |
+          COMMIT_MSG="${{ needs.detect.outputs.commit_msg }}"
+          echo "커밋 메세지 확인: $COMMIT_MSG"
+          
+          git config --global user.name "hihi213"
+          git config --global user.email "hihi213@users.noreply.github.com" 
+          
+          git add .
+
+          if git diff --staged --quiet; then
+            echo "변경 사항이 없습니다."
+          else
+            git commit -m "$COMMIT_MSG (Converted to MD)"
+            git push origin main
+          fi
