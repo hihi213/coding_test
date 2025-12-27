@@ -1,3 +1,21 @@
+# Obsidian-specific files that change frequently and cause conflicts
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/graph.json
+.obsidian/cache/
+
+# Optional: Ignore all Obsidian settings if you want a fresh setup on each device
+# .obsidian/
+
+# Trash folder (if you use it)
+.trash/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
