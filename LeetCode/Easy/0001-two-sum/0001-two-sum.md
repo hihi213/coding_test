@@ -1,3 +1,4 @@
+```python
 class Solution:
     def twoSum(self, nums: List[int], target: int) -> List[int]:
         #값 인덱스리스트 형태로 저장
@@ -23,3 +24,5 @@ class Solution:
                 index[1] = find.pop()
                 break
         return index
+
+```
