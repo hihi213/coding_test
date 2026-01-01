@@ -1,6 +1,6 @@
-# [level 1] 폰켓몬 - 1845 
+# [level 1] 폰켓몬 - 1845
 
-[문제 링크](https://school.programmers.co.kr/learn/courses/30/lessons/1845?language=python3) 
+[문제 링크](https://school.programmers.co.kr/learn/courses/30/lessons/1845?language=python3)
 
 ### 성능 요약
 
