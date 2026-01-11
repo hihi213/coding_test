@@ -1,3 +1,6 @@
+### 소스 코드 (LeetCode/Easy/0020-valid-parentheses/0020-valid-parentheses.py)
+
+```python
 class Solution:
     def isValid(self, s: str) -> bool:
 
@@ -26,3 +29,4 @@ class Solution:
         #끝까지 갔는데 남는게 있다면 false 반환
         if len(openstack)==0 : return True
         return False
+```
