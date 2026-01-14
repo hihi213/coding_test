@@ -1,3 +1,6 @@
+### 소스 코드 (LeetCode/Medium/0739-daily-temperatures/0739-daily-temperatures.py)
+
+```python
 class Solution:
 
     def dailyTemperatures(self, temperatures: List[int]) -> List[int]:
@@ -16,3 +19,4 @@ class Solution:
                 answer[index]=i-index
             notFindYet.append(i)
         return answer
+```
